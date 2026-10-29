@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Upload{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl w-full">
+
+  <div class="mb-8">
+    <h1 class="page-title">Upload a recording</h1>
+    <p class="page-subtitle">
+      Audio or video, or record the meeting right here. Transcription and minutes run in the background.
+    </p>
+  </div>
+
+  <div class="card p-6 lg:p-8">
+    <form method="POST" action="{{ url_for('meetings.upload') }}" enctype="multipart/form-data"
+          id="upload-form" x-data="uploadForm()"
+          data-allowed="{{ allowed|join(',') }}" data-max-mb="{{ max_mb }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+      <div class="mb-6">
+        <label for="title" class="label">Meeting title <span class="text-gray-400 font-normal">(optional)</span></label>
+        <input type="text" id="title" name="title" class="input-field" placeholder="Q4 planning" />
+        <p class="hint">Leave blank to use the filename.</p>
+      </div>
+
+
+      <div class="mb-6">
+        <label class="label">Recording</label>
+        <div class="relative border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer"
+             :class="dragging ? 'border-brand-400 bg-brand-50' : 'border-gray-200 hover:border-gray-300 bg-gray-50'"
+             @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+             @drop.prevent="handleDrop($event)" @click="$refs.fileInput.click()">
+
+          <input type="file" name="file" x-ref="fileInput" class="hidden" required
+                 accept=".{{ allowed|join(',.') }}"
+                 @change="setFile($event.target.files[0])" />
+
+          <template x-if="!file">
+            <div class="space-y-3">
+              <div class="w-14 h-14 bg-white border border-gray-200 rounded-full flex items-center justify-center mx-auto">
+                {{ icon('upload', 'w-7 h-7 text-gray-400', '1.5') }}
+              </div>
+              <div>
+                <p class="text-sm font-medium text-gray-700">Drop a file here, or click to browse</p>
+                <p class="text-xs text-gray-400 mt-1">{{ allowed|join(', ')|upper }} · up to {{ max_mb }} MB</p>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="file">
+            <div class="space-y-2">
+              <div class="w-12 h-12 bg-brand-50 rounded-full flex items-center justify-center mx-auto">
+                {{ icon('microphone', 'w-6 h-6 text-brand-600') }}
+              </div>
+              <p class="text-sm font-semibold text-gray-900" x-text="file.name"></p>
+              <p class="text-xs text-gray-500" x-text="sizeLabel"></p>
+              <button type="button" @click.stop="clear()" class="text-xs text-red-500 hover:text-red-700">Remove</button>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div class="mb-6">
+        <label class="label">Or record it here</label>
+        <div class="recorder">
+          <p x-show="!recorder.supported" x-cloak class="text-sm text-gray-500" x-text="recorder.unavailable"></p>
+
+          <div x-show="recorder.supported">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="rec-dot" :class="{ 'rec-dot-live': recorder.state === 'recording' }"></span>
+                <span class="rec-clock" x-text="recorder.clock"></span>
+                <span class="text-sm text-gray-500 truncate" x-text="recorder.status"></span>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <button type="button" class="btn-secondary" x-show="recorder.state === 'idle'"
+                        @click="startRecording()" :disabled="uploading">
+                  {{ icon('microphone', 'w-4 h-4') }} <span x-text="recorder.url ? 'Record again' : 'Start recording'"></span>
+                </button>
+                <button type="button" class="btn-secondary" x-show="recorder.state !== 'idle'" x-cloak
+                        @click="togglePause()" x-text="recorder.state === 'paused' ? 'Resume' : 'Pause'"></button>
+                <button type="button" class="btn-danger" x-show="recorder.state !== 'idle'" x-cloak
+                        @click="stopRecording()">{{ icon('stop', 'w-4 h-4') }} Stop</button>
+              </div>
+            </div>
+            <div class="level-track mt-3" x-show="recorder.state !== 'idle'" x-cloak>
+              <div class="level-bar" :style="`width:${recorder.level}%`"></div>
+            </div>
+            <audio x-show="recorder.url" x-cloak :src="recorder.url" controls class="w-full mt-3"></audio>
+          </div>
+        </div>
+        <p class="hint">
+          Place the device where everyone can be heard and keep this tab open. When you stop, the
+          recording is attached above, ready to upload.
+        </p>
+      </div>
+
+      <div x-show="uploading" class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-medium text-gray-700">Uploading</span>
+          <span class="text-sm text-gray-500" x-text="percent + '%'"></span>
+        </div>
+        <div class="progress-track"><div class="progress-bar" :style="`width:${percent}%`"></div></div>
+      </div>
+
+      <div class="bg-blue-50 rounded-xl p-4 mb-6 flex gap-3">
+        {{ icon('info', 'w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5') }}
+        <div class="text-sm text-blue-700">
+          <p class="font-medium">Large recordings are fine</p>
+          <p class="mt-0.5 text-blue-600">
+            Long meetings are transcribed and summarised in parts, so length is not limited by the
+            model. You can close this page: processing continues in the background.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button type="submit" class="btn-primary flex-1 justify-center"
+                :disabled="!file || uploading || recorder.state !== 'idle'">
+          <span x-show="!uploading" class="inline-flex items-center gap-2">
+            {{ icon('upload', 'w-4 h-4') }} Upload and process
+          </span>
+          <span x-show="uploading" class="inline-flex items-center gap-2">
+            {{ icon('spinner', 'w-4 h-4 animate-spin') }} Uploading
+          </span>
+        </button>
+        <a href="{{ url_for('meetings.list_meetings') }}" class="btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

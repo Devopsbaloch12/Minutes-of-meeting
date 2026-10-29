@@ -1,0 +1,33 @@
+{% extends "auth/_shell.html" %}
+{% block title %}Sign in{% endblock %}
+
+{% block card %}
+<h2 class="text-xl font-semibold text-gray-900 mb-6">Welcome back</h2>
+
+<form method="POST" action="{{ url_for('auth.login') }}" class="space-y-5">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+  <div>
+    <label for="username" class="label">Username</label>
+    <input type="text" id="username" name="username" required autocomplete="username"
+           class="input-field" placeholder="Your username" autofocus />
+  </div>
+
+  <div>
+    <label for="password" class="label">Password</label>
+    <input type="password" id="password" name="password" required autocomplete="current-password"
+           class="input-field" placeholder="Your password" />
+  </div>
+
+  <label class="flex items-center gap-2 cursor-pointer">
+    <input type="checkbox" name="remember" class="w-4 h-4 text-brand-600 rounded border-gray-300" />
+    <span class="text-sm text-gray-600">Remember me</span>
+  </label>
+
+  <button type="submit" class="btn-primary w-full justify-center">
+    {{ icon('login', 'w-4 h-4') }} Sign in
+  </button>
+</form>
+{% endblock %}
+
+{% block footnote %}Ask your administrator for an account.{% endblock %}

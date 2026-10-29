@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl w-full">
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+    <div>
+      <h1 class="page-title">Dashboard</h1>
+      <p class="page-subtitle">Welcome back, {{ current_user.username }}.</p>
+    </div>
+    <a href="{{ url_for('meetings.upload') }}" class="btn-primary">
+      {{ icon('upload', 'w-4 h-4') }} Upload a recording
+    </a>
+  </div>
+
+  {% if current_user.is_admin and not providers_ready %}
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex gap-3">
+    {{ icon('alert', 'w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5') }}
+    <div class="text-sm">
+      <p class="font-medium text-amber-800">Finish setting up your AI providers</p>
+      <p class="text-amber-700 mt-0.5">
+        {% if config.DEVELOPER_VIEW %}
+        Add an LLM endpoint and a transcription provider before uploading.
+        <a href="{{ url_for('admin.settings_page') }}" class="underline font-medium">Open settings</a>.
+        {% else %}
+        Transcription or summarisation is not configured. Ask whoever runs this server to set it up.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    {% for label, value, name, colour in [
+      ('Total meetings', stats.total, 'archive', 'text-gray-400'),
+      ('Completed', stats.completed, 'check-circle', 'text-green-500'),
+      ('In progress', stats.processing, 'clock', 'text-blue-500'),
+      ('Failed', stats.failed, 'alert', 'text-red-500')] %}
+    <div class="stat-card">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{{ label }}</p>
+          <p class="text-2xl font-bold text-gray-900 mt-1">{{ value }}</p>
+        </div>
+        {{ icon(name, 'w-5 h-5 ' ~ colour) }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <h2 class="section-title">Recent meetings</h2>
+      <a href="{{ url_for('meetings.list_meetings') }}" class="text-sm font-medium text-brand-600 hover:text-brand-700">View all</a>
+    </div>
+
+    {% if recent %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100">
+          <tr>
+            <th class="th-cell">Meeting</th>
+            <th class="th-cell">Status</th>
+            <th class="th-cell hidden sm:table-cell">Length</th>
+            <th class="th-cell hidden md:table-cell">Uploaded</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% for meeting in recent %}
+          <tr class="hover:bg-gray-50">
+            <td class="td-cell">
+              <a href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}"
+                 class="font-medium text-gray-900 hover:text-brand-600">{{ meeting.title }}</a>
+            </td>
+            <td class="td-cell"><span class="status-badge status-{{ meeting.status }}">{{ meeting.status|capitalize }}</span></td>
+            <td class="td-cell hidden sm:table-cell text-gray-500">{{ meeting.duration_label }}</td>
+            <td class="td-cell hidden md:table-cell text-gray-500">
+              {{ meeting.created_at.strftime('%d %b %Y') if meeting.created_at }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 px-6">
+      <div class="w-14 h-14 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+        {{ icon('microphone', 'w-7 h-7 text-gray-300') }}
+      </div>
+      <p class="font-medium text-gray-900">No meetings yet</p>
+      <p class="text-sm text-gray-500 mt-1 mb-6">Upload a recording and the minutes will be waiting for you.</p>
+      <a href="{{ url_for('meetings.upload') }}" class="btn-primary">{{ icon('upload', 'w-4 h-4') }} Upload a recording</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

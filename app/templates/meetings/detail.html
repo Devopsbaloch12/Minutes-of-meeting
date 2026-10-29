@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}{{ meeting.title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl w-full">
+
+  <nav class="flex items-center gap-2 text-sm text-gray-400 mb-6">
+    <a href="{{ url_for('meetings.list_meetings') }}" class="hover:text-gray-600">Meetings</a>
+    <span>/</span>
+    <span class="text-gray-700 truncate max-w-xs">{{ meeting.title }}</span>
+  </nav>
+
+  <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+    <div class="min-w-0">
+      <h1 class="page-title">{{ meeting.title }}</h1>
+      <p class="page-subtitle truncate">
+        {{ meeting.original_filename }} · {{ meeting.file_size|filesize }}
+        {%- if meeting.duration_seconds %} · {{ meeting.duration_label }}{% endif %}
+        {%- if meeting.created_at %} · {{ meeting.created_at.strftime('%d %b %Y, %H:%M') }}{% endif %}
+      </p>
+      {% if config.DEVELOPER_VIEW and (meeting.speech_provider or meeting.llm_model) %}
+      <p class="text-xs text-gray-400 mt-1">
+        {% if meeting.speech_provider %}Transcribed with {{ meeting.speech_provider }}{% endif %}
+        {%- if meeting.llm_model %} · summarised with {{ meeting.llm_model }}{% endif %}
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <span class="status-badge status-{{ meeting.status }} text-sm px-3 py-1.5" id="status-badge">
+        <span id="status-label">{{ meeting.status|capitalize }}</span>
+      </span>
+
+      {% if meeting.is_active %}
+      <form method="POST" action="{{ url_for('meetings.cancel', meeting_id=meeting.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn-secondary">{{ icon('stop', 'w-4 h-4') }} Cancel</button>
+      </form>
+      {% elif meeting.has_source_file %}
+      <form method="POST" action="{{ url_for('meetings.retry', meeting_id=meeting.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn-secondary">{{ icon('refresh', 'w-4 h-4') }} Run again</button>
+      </form>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('meetings.delete', meeting_id=meeting.id) }}"
+            onsubmit="return confirm('Delete this meeting and its minutes permanently?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn-danger">{{ icon('trash', 'w-4 h-4') }} Delete</button>
+      </form>
+    </div>
+  </div>
+
+  {% if meeting.status not in ['completed', 'failed', 'cancelled'] %}
+  <div class="card p-6 mb-6" id="progress-card">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-sm font-medium text-gray-700" id="progress-label">{{ meeting.status|capitalize }}…</span>
+      <span class="text-sm text-gray-500" id="progress-pct">{{ meeting.progress or 0 }}%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-bar" id="progress-bar" style="width: {{ meeting.progress or 0 }}%"></div>
+    </div>
+    <p class="text-xs text-gray-400 mt-3">
+      This page updates on its own. Processing time depends on the recording length and the provider
+      you chose.
+    </p>
+  </div>
+  {% endif %}
+
+  {% if meeting.status == 'failed' and meeting.error_message %}
+  <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex gap-3">
+    {{ icon('alert', 'w-5 h-5 text-red-500 flex-shrink-0 mt-0.5') }}
+    <div class="min-w-0">
+      <p class="text-sm font-semibold text-red-700">Processing failed</p>
+      {% if config.DEVELOPER_VIEW %}
+      <p class="text-sm text-red-600 mt-1 break-words">{{ meeting.error_message }}</p>
+      {% else %}
+      <p class="text-sm text-red-600 mt-1">
+        The minutes could not be written for this recording. Press <strong>Run again</strong>; if it
+        fails a second time, let whoever runs this app know.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if meeting.minutes_of_meeting or meeting.transcript %}
+  <div x-data="{ tab: '{{ 'minutes' if meeting.minutes_of_meeting else 'transcript' }}' }" class="card overflow-hidden mb-6">
+    <div class="flex border-b border-gray-100">
+      <button @click="tab = 'minutes'" class="tab-button" :class="tab === 'minutes' ? 'tab-active' : 'tab-idle'">
+        {{ icon('document', 'w-4 h-4 flex-shrink-0') }} Minutes
+      </button>
+      <button @click="tab = 'transcript'" class="tab-button" :class="tab === 'transcript' ? 'tab-active' : 'tab-idle'">
+        {{ icon('chat', 'w-4 h-4 flex-shrink-0') }} Transcript
+      </button>
+    </div>
+
+    <div x-show="tab === 'minutes'" class="p-6 lg:p-8">
+      <div class="flex items-center justify-between mb-4 gap-2">
+        <h3 class="section-title">Minutes of meeting</h3>
+        <div class="flex gap-2">
+          <button onclick="copyElement('minutes-content')" class="btn-secondary text-xs">
+            {{ icon('copy', 'w-3.5 h-3.5') }} Copy
+          </button>
+          {% if meeting.minutes_of_meeting %}
+          <a href="{{ url_for('meetings.download', meeting_id=meeting.id, kind='minutes') }}" class="btn-secondary text-xs">
+            {{ icon('download', 'w-3.5 h-3.5') }} Markdown
+          </a>
+          <a href="{{ url_for('meetings.download', meeting_id=meeting.id, kind='pdf') }}" class="btn-secondary text-xs">
+            {{ icon('download', 'w-3.5 h-3.5') }} PDF
+          </a>
+          <a href="{{ url_for('meetings.download', meeting_id=meeting.id, kind='docx') }}" class="btn-secondary text-xs">
+            {{ icon('download', 'w-3.5 h-3.5') }} Word
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      <div id="minutes-content" class="prose max-w-none">
+        {% if meeting.minutes_of_meeting %}
+          {{ meeting.minutes_of_meeting | markdown }}
+        {% else %}
+          <p class="text-gray-400 italic">Not generated yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div x-show="tab === 'transcript'" class="p-6 lg:p-8">
+      <div class="flex items-center justify-between mb-4 gap-2">
+        <h3 class="section-title">Full transcript</h3>
+        <div class="flex gap-2">
+          <button onclick="copyElement('transcript-content')" class="btn-secondary text-xs">
+            {{ icon('copy', 'w-3.5 h-3.5') }} Copy
+          </button>
+          {% if meeting.transcript %}
+          <a href="{{ url_for('meetings.download', meeting_id=meeting.id, kind='transcript') }}" class="btn-secondary text-xs">
+            {{ icon('download', 'w-3.5 h-3.5') }} Text
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      <div id="transcript-content" class="transcript-box">{{ meeting.transcript or 'Not available yet.' }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if config.DEVELOPER_VIEW %}
+  <div class="card overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-100">
+      <h3 class="section-title">Activity</h3>
+    </div>
+    <ul class="divide-y divide-gray-50" id="event-list">
+      {% for event in events %}
+      <li class="flex items-start gap-3 px-6 py-3">
+        <span class="event-dot event-{{ event.level }}"></span>
+        <span class="text-sm {{ 'text-red-600' if event.level == 'error' else 'text-gray-700' }} flex-1">{{ event.message }}</span>
+        <span class="text-xs text-gray-400 flex-shrink-0">{{ event.created_at.strftime('%H:%M:%S') if event.created_at }}</span>
+      </li>
+      {% else %}
+      <li class="px-6 py-4 text-sm text-gray-400">No activity recorded.</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  trackMeeting({{ meeting.id }}, {{ meeting.status | tojson }});
+</script>
+{% endblock %}

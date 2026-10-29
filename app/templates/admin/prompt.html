@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl w-full">
+
+  <div class="mb-8">
+    <h1 class="page-title">Settings</h1>
+    <p class="page-subtitle">
+      The instructions the AI follows when it writes the minutes. Change the sections or the wording to
+      match how your team writes minutes; the next meeting uses them.
+    </p>
+  </div>
+
+  <form method="POST" action="{{ url_for('admin.settings_page') }}" class="card p-6 lg:p-8 space-y-5" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    <div>
+      <label for="minutes_prompt" class="label">Minutes prompt</label>
+      <textarea id="minutes_prompt" name="minutes_prompt" rows="22" class="input-field text-sm">{{ prompt }}</textarea>
+      <p class="hint">
+        Each line starting with <code>##</code> is a section the minutes must contain.
+        {% if is_default %}This is the default prompt.{% endif %}
+      </p>
+    </div>
+
+    <div class="flex items-center justify-between gap-3 pt-2 border-t border-gray-100">
+      {% if not is_default %}
+      <button type="submit" name="restore_default" value="1" class="btn-secondary"
+              onclick="return confirm('Replace your prompt with the default one?')">
+        {{ icon('refresh', 'w-4 h-4') }} Restore default
+      </button>
+      {% else %}
+      <span></span>
+      {% endif %}
+      <button type="submit" class="btn-primary">{{ icon('save', 'w-4 h-4') }} Save</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

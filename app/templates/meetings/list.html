@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Meetings{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl w-full">
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+      <h1 class="page-title">Meetings</h1>
+      <p class="page-subtitle">{{ meetings.total }} recording{{ '' if meetings.total == 1 else 's' }}.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      {% if meetings.total and not search and not status_filter %}
+      <form method="POST" action="{{ url_for('meetings.delete_all') }}"
+            onsubmit="return confirm('Delete all {{ meetings.total }} meeting{{ '' if meetings.total == 1 else 's' }} and their minutes permanently? This cannot be undone.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn-danger">{{ icon('trash', 'w-4 h-4') }} Delete all</button>
+      </form>
+      {% endif %}
+      <a href="{{ url_for('meetings.upload') }}" class="btn-primary">{{ icon('upload', 'w-4 h-4') }} Upload</a>
+    </div>
+  </div>
+
+  <div class="flex flex-col md:flex-row gap-3 mb-6">
+    <form method="GET" class="flex-1 flex gap-2">
+      {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}" />{% endif %}
+      <div class="relative flex-1">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{{ icon('search', 'w-4 h-4') }}</span>
+        <input type="search" name="q" value="{{ search }}" placeholder="Search by title or filename"
+               class="input-field pl-9" />
+      </div>
+      <button type="submit" class="btn-secondary">Search</button>
+    </form>
+
+    <div class="flex gap-1 overflow-x-auto">
+      {% for value, label in [('', 'All'), ('queued', 'Queued'), ('transcribing', 'Running'),
+                              ('completed', 'Completed'), ('failed', 'Failed')] %}
+      <a href="{{ url_for('meetings.list_meetings', status=value or None, q=search or None) }}"
+         class="filter-chip {{ 'active' if status_filter == value }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card overflow-hidden">
+    {% if meetings.items %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100">
+          <tr>
+            <th class="th-cell">Meeting</th>
+            <th class="th-cell">Status</th>
+            <th class="th-cell hidden sm:table-cell">Length</th>
+            <th class="th-cell hidden lg:table-cell">Size</th>
+            <th class="th-cell hidden md:table-cell">Uploaded</th>
+            <th class="th-cell"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% for meeting in meetings.items %}
+          <tr class="hover:bg-gray-50">
+            <td class="td-cell">
+              <a href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}"
+                 class="font-medium text-gray-900 hover:text-brand-600">{{ meeting.title }}</a>
+              <p class="text-xs text-gray-400 truncate max-w-xs">{{ meeting.original_filename }}</p>
+            </td>
+            <td class="td-cell">
+              <span class="status-badge status-{{ meeting.status }}" data-status-badge="{{ meeting.id }}">
+                {{ meeting.status|capitalize }}
+              </span>
+            </td>
+            <td class="td-cell hidden sm:table-cell text-gray-500">{{ meeting.duration_label }}</td>
+            <td class="td-cell hidden lg:table-cell text-gray-500">{{ meeting.file_size|filesize }}</td>
+            <td class="td-cell hidden md:table-cell text-gray-500">
+              {{ meeting.created_at.strftime('%d %b %Y') if meeting.created_at }}
+            </td>
+            <td class="td-cell text-right">
+              <div class="flex items-center justify-end gap-3">
+                <a href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}"
+                   class="text-sm font-medium text-brand-600 hover:text-brand-700">Open</a>
+                <form method="POST" action="{{ url_for('meetings.delete', meeting_id=meeting.id) }}"
+                      onsubmit="return confirm('Delete this meeting and its minutes permanently?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="text-gray-400 hover:text-red-600" title="Delete meeting">
+                    {{ icon('trash', 'w-4 h-4') }}<span class="sr-only">Delete</span>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if meetings.pages > 1 %}
+    <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+      <p class="text-sm text-gray-500">Page {{ meetings.page }} of {{ meetings.pages }}</p>
+      <div class="flex gap-2">
+        {% if meetings.has_prev %}
+        <a href="{{ url_for('meetings.list_meetings', page=meetings.prev_num, status=status_filter or None, q=search or None) }}"
+           class="btn-secondary">Previous</a>
+        {% endif %}
+        {% if meetings.has_next %}
+        <a href="{{ url_for('meetings.list_meetings', page=meetings.next_num, status=status_filter or None, q=search or None) }}"
+           class="btn-secondary">Next</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-16 px-6">
+      <div class="w-14 h-14 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+        {{ icon('archive', 'w-7 h-7 text-gray-300') }}
+      </div>
+      <p class="font-medium text-gray-900">Nothing to show</p>
+      <p class="text-sm text-gray-500 mt-1 mb-6">
+        {% if search or status_filter %}No meetings match that filter.{% else %}Upload your first recording to get started.{% endif %}
+      </p>
+      <a href="{{ url_for('meetings.upload') }}" class="btn-primary">{{ icon('upload', 'w-4 h-4') }} Upload a recording</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  pollStatuses({{ meetings.items | map(attribute='id') | list | tojson }},
+               {{ meetings.items | map(attribute='status') | list | tojson }});
+</script>
+{% endblock %}

@@ -1,0 +1,7 @@
+{# The browser-tab icon: the APP_LOGO when one is set, else none at all. "data:," stops
+   browsers requesting /favicon.ico, which would only 404 into the log. #}
+{% if config.APP_LOGO %}
+<link rel="icon" href="{{ url_for('static', filename=config.APP_LOGO) }}" />
+{% else %}
+<link rel="icon" href="data:," />
+{% endif %}
